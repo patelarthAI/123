@@ -1,0 +1,36 @@
+{
+  "name": "precision-resume-formatter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.42.0",
+    "@types/lodash": "^4.17.24",
+    "@types/pdfmake": "^0.3.1",
+    "docx": "^9.5.3",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.34.3",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.0",
+    "lodash": "^4.17.23",
+    "lucide-react": "^0.575.0",
+    "mammoth": "1.11.0",
+    "pdfmake": "^0.3.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/node": "^25.3.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "tailwindcss": "^4.2.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  }
+}
