@@ -1,4 +1,4 @@
 {
   "name": "ArthFormat AI",
-  "description": "A high-precision resume extraction and reformatting tool for recruiters. Converts raw resumes (DOCX, PDF, Image) into structured standard DOCX formats without altering content."
+  "description": "A high-precision resume extraction and reformatting tool for recruiters. Converts raw resumes (DOCX, DOC, PDF, Image) into structured standard DOCX formats without altering content."
 }

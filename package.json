@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "build": "vite build",
     "lint": "tsc --noEmit",
     "preview": "vite preview"
@@ -14,6 +14,7 @@
     "@types/lodash": "^4.17.24",
     "@types/pdfmake": "^0.3.1",
     "docx": "^9.5.3",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.34.3",
     "html2canvas": "^1.4.1",
@@ -21,15 +22,20 @@
     "lodash": "^4.17.23",
     "lucide-react": "^0.575.0",
     "mammoth": "1.11.0",
+    "multer": "^2.0.2",
     "pdfmake": "^0.3.5",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.0.0",
     "@types/node": "^25.3.0",
     "@vitejs/plugin-react": "^5.1.4",
     "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
   }

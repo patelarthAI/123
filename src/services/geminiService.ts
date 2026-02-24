@@ -1,6 +1,18 @@
 import { GoogleGenAI, Type, FunctionDeclaration, FunctionCallingConfigMode, ThinkingLevel } from "@google/genai";
 import { ResumeData, ResumeFormat, GrammarIssue } from "@/types";
 
+const getApiKey = () => {
+  const key = process.env.GEMINI_API_KEY || 
+    (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+    (import.meta as any).env?.GEMINI_API_KEY ||
+    "";
+  
+  if (!key) {
+    console.warn("Gemini API Key not found in any environment source.");
+  }
+  return key;
+};
+
 const SYSTEM_INSTRUCTION = `
 You are a Resume Parser that extracts content VERBATIM. 
 Your goal is to STRUCTURE the data exactly as seen in the document without losing ANY section.
@@ -156,7 +168,7 @@ const grammarAnalysisTool: FunctionDeclaration = {
 };
 
 export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Promise<GrammarIssue[]> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error("API Key is missing. Please set it in the environment.");
   }
@@ -243,7 +255,7 @@ export interface ExtractionPayload {
 export const extractResumeData = async (
   payload: ExtractionPayload
 ): Promise<ResumeData> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error("API Key is missing. Please set it in the environment.");
   }
@@ -382,7 +394,7 @@ Before outputting, you MUST internally verify that:
 };
 
 export const checkSpelling = async (data: ResumeData, format: ResumeFormat): Promise<ResumeData> => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error("API Key is missing. Please set it in the environment.");
   }

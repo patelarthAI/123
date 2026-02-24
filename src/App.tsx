@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { UploadCloud, FileText, Loader2, AlertTriangle, CheckCircle, Sparkles, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppState, ResumeData, ResumeFormat } from '@/types';
@@ -17,6 +17,13 @@ const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [selectedFormat, setSelectedFormat] = useState<ResumeFormat>(ResumeFormat.CLASSIC_PROFESSIONAL);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => console.log('Backend Health:', data))
+      .catch(err => console.error('Backend Health Check Failed:', err));
+  }, []);
 
   // Handle file input (drag & drop or click)
   const handleFileChange = useCallback(async (file: File) => {
@@ -39,6 +46,31 @@ const App: React.FC = () => {
         if (!text || text.trim().length === 0) {
           throw new Error("Could not extract text from this Word document.");
         }
+        const extractedData = await extractResumeData({ text, mimeType: 'text/plain', format: selectedFormat });
+        setResumeData(extractedData);
+        setAppState(AppState.REVIEW);
+        return;
+      }
+
+      // 1.5. Legacy .doc Handling (Server-side)
+      if (
+        file.type === 'application/msword' || 
+        file.name.endsWith('.doc')
+      ) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/extract-doc', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to extract text from .doc file.");
+        }
+
+        const { text } = await response.json();
         const extractedData = await extractResumeData({ text, mimeType: 'text/plain', format: selectedFormat });
         setResumeData(extractedData);
         setAppState(AppState.REVIEW);
@@ -82,7 +114,7 @@ const App: React.FC = () => {
       }
 
       // 4. Unsupported
-      throw new Error("Unsupported file format. Please upload DOCX, PDF, Text, or Image files. (Legacy .doc files should be converted to .docx)");
+      throw new Error("Unsupported file format. Please upload DOCX, DOC, PDF, Text, or Image files.");
 
     } catch (err: any) {
       console.error(err);
@@ -236,7 +268,7 @@ const App: React.FC = () => {
                     Drop your resume here
                   </h3>
                   <p className="text-slate-400 mb-8 max-w-md mx-auto font-light">
-                    Supports Word, PDF, Text, or Images. We'll handle the rest with pixel-perfect precision.
+                    Supports Word (.docx, .doc), PDF, Text, or Images. We'll handle the rest with pixel-perfect precision.
                   </p>
                   
                   <button className="px-8 py-3 bg-white text-slate-900 font-semibold rounded-xl hover:bg-indigo-50 transition-colors flex items-center gap-2 group-hover:scale-105 duration-200">
