@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { UploadCloud, FileText, Loader2, AlertTriangle, CheckCircle, Sparkles, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppState, ResumeData, ResumeFormat } from './types';
-import { extractResumeData } from './services/geminiService';
-import { generateResumeDoc } from './services/docxService';
-import ResumePreview from './components/ResumePreview';
+import { AppState, ResumeData, ResumeFormat } from '@/types';
+import { extractResumeData } from '@/services/geminiService';
+import { generateResumeDoc } from '@/services/docxService';
+import ResumePreview from '@/components/ResumePreview';
 import FileSaver from 'file-saver';
 import { LayoutTemplate } from 'lucide-react';
 // @ts-ignore
