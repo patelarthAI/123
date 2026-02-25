@@ -1,17 +1,86 @@
 import { GoogleGenAI, Type, FunctionDeclaration, FunctionCallingConfigMode, ThinkingLevel } from "@google/genai";
 import { ResumeData, ResumeFormat, GrammarIssue } from "@/types";
 
-const getApiKey = () => {
-  const key = process.env.GEMINI_API_KEY || 
-    (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-    (import.meta as any).env?.GEMINI_API_KEY ||
-    "";
+let currentKeyIndex = 0;
+
+const getKeyPool = (): string[] => {
+  const env = (import.meta as any).env || {};
+  const keys = [
+    env.VITE_GEMINI_KEY_1,
+    env.VITE_GEMINI_KEY_2,
+    env.VITE_GEMINI_KEY_3,
+    env.VITE_GEMINI_API_KEY,
+  ].filter(Boolean);
   
-  if (!key) {
-    console.warn("Gemini API Key not found in any environment source.");
+  // Also check process.env for server-side or other environments
+  if (keys.length === 0 && typeof process !== 'undefined' && process.env.GEMINI_API_KEY) {
+    keys.push(process.env.GEMINI_API_KEY);
   }
+  
+  return keys;
+};
+
+const getNextApiKey = () => {
+  const pool = getKeyPool();
+  if (pool.length === 0) return "";
+  const key = pool[currentKeyIndex % pool.length];
   return key;
 };
+
+const FALLBACK_MODELS = [
+  "gemini-3-flash-preview",
+  "gemini-3.1-pro-preview",
+  "gemini-flash-latest"
+];
+
+async function withModelFallback<T>(
+  operation: (modelId: string, apiKey: string) => Promise<T>,
+  operationName: string
+): Promise<T> {
+  let lastError: any;
+  const pool = getKeyPool();
+  
+  if (pool.length === 0) {
+    throw new Error("No API Keys found. Please configure VITE_GEMINI_KEY_1, 2, or 3.");
+  }
+
+  // We try up to 3 times total across keys/models
+  let totalAttempts = 0;
+  const maxAttempts = 3;
+
+  for (const modelId of FALLBACK_MODELS) {
+    for (let i = 0; i < pool.length; i++) {
+      if (totalAttempts >= maxAttempts) break;
+
+      const apiKey = getNextApiKey();
+      try {
+        return await operation(modelId, apiKey);
+      } catch (error: any) {
+        const errorString = error?.toString() || "";
+        const isRateLimit = error?.status === 429 || 
+          error?.status === "RESOURCE_EXHAUSTED" || 
+          errorString.includes("429") || 
+          errorString.includes("Quota exceeded") ||
+          errorString.includes("RESOURCE_EXHAUSTED");
+          
+        if (isRateLimit) {
+          console.warn(`[${operationName}] Model ${modelId} with Key ${currentKeyIndex % pool.length} hit rate limit. Rotating key...`);
+          currentKeyIndex++; // Move to next key
+          totalAttempts++;
+          lastError = error;
+          continue; 
+        }
+        
+        console.error(`[${operationName}] Fatal error with model ${modelId}:`, error);
+        throw error;
+      }
+    }
+    if (totalAttempts >= maxAttempts) break;
+  }
+  
+  console.error(`[${operationName}] All attempts exhausted.`, lastError);
+  throw new Error("API Rate Limit Exceeded: All available keys and models are currently exhausted. Please wait a moment and try again.");
+}
 
 const SYSTEM_INSTRUCTION = `
 You are a Resume Parser that extracts content VERBATIM. 
@@ -168,15 +237,8 @@ const grammarAnalysisTool: FunctionDeclaration = {
 };
 
 export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Promise<GrammarIssue[]> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please set it in the environment.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelId = "gemini-3-flash-preview";
-
-  try {
+  return withModelFallback(async (modelId, apiKey) => {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: modelId,
       contents: {
@@ -233,11 +295,7 @@ export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Pr
     }
     
     return []; // No issues found or model didn't call tool
-
-  } catch (error) {
-    console.error("Error analyzing grammar:", error);
-    throw error;
-  }
+  }, "analyzeGrammar");
 };
 
 const cleanText = (text: string): string => {
@@ -255,15 +313,8 @@ export interface ExtractionPayload {
 export const extractResumeData = async (
   payload: ExtractionPayload
 ): Promise<ResumeData> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please set it in the environment.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelId = "gemini-3-flash-preview";
-
-  try {
+  return withModelFallback(async (modelId, apiKey) => {
+    const ai = new GoogleGenAI({ apiKey });
     const parts: any[] = [];
     
     if (payload.base64) {
@@ -386,23 +437,12 @@ Before outputting, you MUST internally verify that:
     }
     
     throw new Error("The AI model did not trigger the extraction tool correctly.");
-
-  } catch (error) {
-    console.error("Error extracting resume data:", error);
-    throw error;
-  }
+  }, "extractResumeData");
 };
 
 export const checkSpelling = async (data: ResumeData, format: ResumeFormat): Promise<ResumeData> => {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("API Key is missing. Please set it in the environment.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelId = "gemini-3-flash-preview";
-
-  try {
+  return withModelFallback(async (modelId, apiKey) => {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: modelId,
       contents: {
@@ -455,9 +495,5 @@ export const checkSpelling = async (data: ResumeData, format: ResumeFormat): Pro
     }
     
     throw new Error("The AI model did not return corrected data.");
-
-  } catch (error) {
-    console.error("Error checking spelling:", error);
-    throw error;
-  }
+  }, "checkSpelling");
 };
