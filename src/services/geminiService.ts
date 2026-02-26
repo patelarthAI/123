@@ -108,6 +108,7 @@ CRITICAL RULES:
    - **STATE**: Use ONLY the 2-letter postal abbreviation for US states (e.g., "California" -> "CA", "Texas" -> "TX").
 6. **TITLES**: Capture the EXACT section titles used in the resume.
 7. **PRIVACY**: Do NOT include any phone numbers or email addresses in ANY field (including summary, custom sections, or title). If found, remove them completely.
+8. **INLINE LISTS**: If you encounter a single line that contains multiple items separated by symbols like "◆", "•", "|", or "-", you MUST split that line into individual items in the array. For example, "◆ SolidWorks ◆ AutoCAD" should become two items: "SolidWorks" and "AutoCAD".
 
 Call 'save_resume_data' with the extracted data.
 `;
@@ -300,7 +301,8 @@ export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Pr
 
 const cleanText = (text: string): string => {
   if (!text) return "";
-  return text.replace(/^[\s\u2022\u00b7\-\*]+/, "").trim();
+  // Removes leading spaces, bullets (•, ·, -, *, ◆, ■, ●, etc)
+  return text.replace(/^[\s\u2022\u00b7\-\*\u25c6\u25a0\u25cf\|]+/, "").trim();
 };
 
 export interface ExtractionPayload {
@@ -339,7 +341,7 @@ export const extractResumeData = async (
         : "- Focus on brevity and traditional formatting. Abbreviate months to 3 letters (e.g., 'Jan')."}
       
       GENERAL INSTRUCTIONS:
-      Do not miss ANY sections. Map Work to Experience, Internships to Internships, Education to Education. Put 'Soft Skills', 'Technical Skills', 'Languages', 'Tools', 'Projects' into customSections. CRITICAL: For contactInfo.location, extract City, State, and Zip Code if available. CRITICAL: For dates, if a month is present, abbreviate it to 3 letters (e.g., 'Jan'). If NO month is present, DO NOT add one (e.g., keep '2023' as '2023'). CRITICAL: Remove ALL phone numbers and email addresses from the main content, but keep them in the contactInfo fields if found.`,
+      Do not miss ANY sections. Map Work to Experience, Internships to Internships, Education to Education. Put 'Soft Skills', 'Technical Skills', 'Languages', 'Tools', 'Projects' into customSections. CRITICAL: For contactInfo.location, extract City, State, and Zip Code if available. CRITICAL: For dates, if a month is present, abbreviate it to 3 letters (e.g., 'Jan'). If NO month is present, DO NOT add one (e.g., keep '2023' as '2023'). CRITICAL: Remove ALL phone numbers and email addresses from the main content, but keep them in the contactInfo fields if found. CRITICAL: Split inline lists separated by "◆", "•", or "|" into separate array items.`,
     });
 
     const response = await ai.models.generateContent({
