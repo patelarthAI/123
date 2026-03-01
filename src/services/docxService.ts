@@ -180,79 +180,36 @@ export const generateResumeDoc = async (data: ResumeData, format: ResumeFormat =
     });
   };
 
-  // Grid for Skills/Languages
-  const createGrid = (items: string[]) => {
-    const rows: TableRow[] = [];
-    for (let i = 0; i < items.length; i += 2) {
+  const createTwoColumnList = (items: string[]) => {
+    const elements = [];
+    const half = Math.ceil(items.length / 2);
+    
+    for (let i = 0; i < half; i++) {
       const item1 = items[i];
-      const item2 = items[i + 1];
-
-      const cellContent = (text: string) => 
-        new Paragraph({
-          indent: { left: convertInchesToTwip(0.25), hanging: convertInchesToTwip(0.25) },
-          spacing: SINGLE_LINE,
-          tabStops: [
-              { type: TabStopType.LEFT, position: convertInchesToTwip(0.25) }
-          ],
-          children: [
-            new TextRun({ text: "•\t", font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }),
-            new TextRun({ text: text, font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }),
-          ]
-        });
-
-      const cells = [
-        new TableCell({
-          width: { size: 50, type: WidthType.PERCENTAGE },
-          children: [cellContent(item1)],
-          borders: {
-            top: { style: BorderStyle.NIL },
-            bottom: { style: BorderStyle.NIL },
-            left: { style: BorderStyle.NIL },
-            right: { style: BorderStyle.NIL },
-          },
-        }),
+      const item2 = items[i + half];
+      
+      const children = [
+        new TextRun({ text: "•\t", font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }),
+        new TextRun({ text: item1, font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }),
       ];
-
+      
       if (item2) {
-        cells.push(
-          new TableCell({
-            width: { size: 50, type: WidthType.PERCENTAGE },
-            children: [cellContent(item2)],
-            borders: {
-              top: { style: BorderStyle.NIL },
-              bottom: { style: BorderStyle.NIL },
-              left: { style: BorderStyle.NIL },
-              right: { style: BorderStyle.NIL },
-            },
-          })
-        );
-      } else {
-         cells.push(new TableCell({ 
-           children: [], 
-           width: { size: 50, type: WidthType.PERCENTAGE },
-           borders: {
-            top: { style: BorderStyle.NIL },
-            bottom: { style: BorderStyle.NIL },
-            left: { style: BorderStyle.NIL },
-            right: { style: BorderStyle.NIL },
-          },
-         }));
+        children.push(new TextRun({ text: "\t•\t", font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }));
+        children.push(new TextRun({ text: item2, font: FONT_FAMILY, size: SIZE_TEXT, color: COLOR_BLACK }));
       }
-      rows.push(new TableRow({ children: cells }));
+      
+      elements.push(new Paragraph({
+        spacing: SINGLE_LINE,
+        indent: { left: convertInchesToTwip(0.25), hanging: convertInchesToTwip(0.25) },
+        tabStops: [
+          { type: TabStopType.LEFT, position: convertInchesToTwip(0.25) }, // For first bullet text
+          { type: TabStopType.LEFT, position: convertInchesToTwip(3.5) },  // For second bullet
+          { type: TabStopType.LEFT, position: convertInchesToTwip(3.75) }  // For second bullet text
+        ],
+        children: children
+      }));
     }
-
-    return new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      borders: {
-        top: { style: BorderStyle.NIL },
-        bottom: { style: BorderStyle.NIL },
-        left: { style: BorderStyle.NIL },
-        right: { style: BorderStyle.NIL },
-        insideVertical: { style: BorderStyle.NIL },
-        insideHorizontal: { style: BorderStyle.NIL },
-      },
-      rows: rows,
-    });
+    return elements;
   };
 
   const doc = new Document({
@@ -473,12 +430,13 @@ export const generateResumeDoc = async (data: ResumeData, format: ResumeFormat =
              const titleUpper = section.title.toUpperCase();
              const isGridCandidate = titleUpper.includes("SKILLS") || titleUpper.includes("COMPETENCIES") || titleUpper.includes("LANGUAGES");
              const hasLongItems = section.items && section.items.some(item => item.length > 60);
+             const useColumns = isGridCandidate && !hasLongItems && section.items && section.items.length > 2;
 
              const elements = [];
              elements.push(createSectionHeader(section.title));
              
-             if (isGridCandidate && !hasLongItems && section.items) {
-               elements.push(createGrid(section.items));
+             if (useColumns && section.items) {
+               elements.push(...createTwoColumnList(section.items));
              } else if (section.items) {
                section.items.forEach(item => {
                  const isKeyValue = item.includes(":") && item.indexOf(":") < 20; 
@@ -501,7 +459,7 @@ export const generateResumeDoc = async (data: ResumeData, format: ResumeFormat =
              }
              elements.push(emptyLine());
              return elements;
-          }) : [])
+          }) : []),
 
         ],
       },

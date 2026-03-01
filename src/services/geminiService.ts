@@ -253,7 +253,7 @@ export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Pr
               : "- Maintain a traditional, concise tone. Dates should remain abbreviated."}
 
             CRITICAL INSTRUCTIONS:
-            1. **Spelling**: Identify standard **US English** spelling mistakes. Categorize as 'SPELLING'.
+            1. **Spelling**: You MUST identify and fix all standard **US English** spelling mistakes. This is your primary task. Categorize as 'SPELLING'.
             2. **Grammar & Verb Tense**: Identify grammatical errors, incorrect verb tenses, or punctuation issues. Categorize as 'GRAMMAR'.
             3. **Resume Best Practices (Style)**: 
                - Suggest stronger action verbs (e.g., "Led" instead of "Was in charge of").
@@ -303,6 +303,17 @@ const cleanText = (text: string): string => {
   if (!text) return "";
   // Removes leading spaces, bullets (•, ·, -, *, ◆, ■, ●, etc)
   return text.replace(/^[\s\u2022\u00b7\-\*\u25c6\u25a0\u25cf\|]+/, "").trim();
+};
+
+const normalizeDates = (dateStr: string): string => {
+  if (!dateStr) return "";
+  // Replace " to " with " - " (case insensitive)
+  // Replace multiple spaces around hyphens with a single space
+  // Also handle en-dash and em-dash
+  return dateStr
+    .replace(/\s+to\s+/gi, " - ")
+    .replace(/\s*[\u2013\u2014\-]\s*/g, " - ")
+    .trim();
 };
 
 export interface ExtractionPayload {
@@ -416,16 +427,19 @@ Before outputting, you MUST internally verify that:
          if (data.experience) {
            data.experience.forEach(exp => {
              if (exp.description) exp.description = exp.description.map(cleanText);
+             if (exp.dates) exp.dates = normalizeDates(exp.dates);
            });
          }
          if (data.internships) {
             data.internships.forEach(exp => {
               if (exp.description) exp.description = exp.description.map(cleanText);
+              if (exp.dates) exp.dates = normalizeDates(exp.dates);
             });
          }
          if (data.education) {
             data.education.forEach(edu => {
                 if (edu.details) edu.details = edu.details.map(cleanText);
+                if (edu.dates) edu.dates = normalizeDates(edu.dates);
             });
          }
          if (data.customSections) {

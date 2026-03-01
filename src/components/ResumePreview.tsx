@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ResumeData, GrammarIssue, ChangeLogItem, ResumeFormat } from "@/types";
-import { Download, CheckCircle2, FileText, SpellCheck, Loader2, History, ArrowRight, LayoutTemplate } from "lucide-react";
+import { Download, CheckCircle2, FileText, SpellCheck, Loader2, History, ArrowRight, LayoutTemplate, Undo2 } from "lucide-react";
 import { analyzeGrammar } from "@/services/geminiService";
 import { generateResumePDF } from "@/services/pdfService";
 import { generateResumeDoc } from "@/services/docxService";
@@ -20,12 +20,9 @@ interface ResumePreviewProps {
 const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset, onUpdate, selectedFormat }) => {
   const [isChecking, setIsChecking] = useState(false);
   const [issues, setIssues] = useState<GrammarIssue[]>([]);
-  const [changeLog, setChangeLog] = useState<ChangeLogItem[]>([]);
-  
-  // Initialize/Reset logs when data changes (new upload)
-  React.useEffect(() => {
+  const [changeLog, setChangeLog] = useState<ChangeLogItem[]>(() => {
     if (data.extractionChanges) {
-        const extractionLogs: ChangeLogItem[] = data.extractionChanges.map(c => ({
+        return data.extractionChanges.map(c => ({
             id: c.id || Math.random().toString(),
             timestamp: Date.now(),
             path: "Extraction",
@@ -33,13 +30,12 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
             new: c.description,
             reason: c.reason
         }));
-        setChangeLog(extractionLogs);
-    } else {
-        setChangeLog([]);
     }
-    // Note: setIssues([]) is NOT called here anymore. 
-    // It will be reset naturally when ResumePreview remounts due to key={fileName} in App.tsx
-  }, [data.extractionChanges]);
+    return [];
+  });
+  
+  // Note: setIssues([]) is NOT called here anymore. 
+  // It will be reset naturally when ResumePreview remounts due to key={fileName} in App.tsx
   
   // Styles based on format
   const getStyles = (format: ResumeFormat) => {
@@ -227,6 +223,25 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
     setIssues(prev => prev.filter(i => i.id !== issue.id));
   };
 
+  const handleUndoChange = (log: ChangeLogItem) => {
+    // Only allow undo for Grammar changes
+    if (log.path === "Extraction") return;
+
+    const newData = JSON.parse(JSON.stringify(data));
+    const currentValue = _.get(newData, log.path);
+
+    if (typeof currentValue === 'string') {
+        const newValue = currentValue.replace(log.new, log.original);
+        _.set(newData, log.path, newValue);
+        
+        // Update data
+        onUpdate(newData);
+        
+        // Remove from changeLog
+        setChangeLog(prev => prev.filter(item => item.id !== log.id));
+    }
+  };
+
   const handleDownloadPDF = () => {
     try {
       generateResumePDF(data, selectedFormat);
@@ -245,22 +260,6 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
       alert("Failed to generate DOCX.");
     }
   };
-
-  const GridItems = ({ items, sectionIdx }: { items: string[], sectionIdx: number }) => (
-    <ul style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: '2rem', paddingLeft: '1.25rem', listStyleType: 'disc', marginTop: 0 }}>
-      {items.map((item, idx) => (
-        <li key={idx} style={{ fontSize: styles.fontSizeBody, lineHeight: styles.lineHeight, marginBottom: '2px', paddingLeft: '2px' }}>
-           <GrammarHighlighter 
-             text={item} 
-             path={`customSections.${sectionIdx}.items.${idx}`} 
-             issues={issues} 
-             onAccept={handleAcceptIssue} 
-             onIgnore={handleIgnoreIssue} 
-           />
-        </li>
-      ))}
-    </ul>
-  );
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 w-full max-w-7xl mx-auto">
@@ -586,9 +585,10 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
 
               {/* 6. Custom Sections (Skills, Tools, etc.) */}
               {data.customSections && data.customSections.map((section, idx) => {
-                  const titleUpper = section.title.toUpperCase();
-                  const isGrid = titleUpper.includes("SKILLS") || titleUpper.includes("COMPETENCIES") || titleUpper.includes("LANGUAGES");
+                   const titleUpper = section.title.toUpperCase();
+                   const isGridCandidate = titleUpper.includes("SKILLS") || titleUpper.includes("COMPETENCIES") || titleUpper.includes("LANGUAGES");
                    const hasLongItems = section.items && section.items.some(item => item.length > 60);
+                   const useColumns = isGridCandidate && !hasLongItems && section.items && section.items.length > 2;
 
                    return (
                      <div key={idx} style={{ marginBottom: styles.marginBottom }}>
@@ -604,10 +604,13 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
                          {formatTitle(section.title)}
                        </h3>
                        <div style={{ paddingTop: '0.25rem' }}>
-                         {isGrid && !hasLongItems && section.items ? (
-                            <GridItems items={section.items} sectionIdx={idx} />
-                         ) : (
-                           <ul style={{ listStyleType: 'disc', paddingLeft: '1.25rem', marginTop: 0 }}>
+                           <ul style={{ 
+                               columnCount: useColumns ? 2 : 1, 
+                               columnGap: '2rem', 
+                               paddingLeft: '1.25rem', 
+                               marginTop: 0,
+                               listStyleType: 'disc'
+                           }}>
                               {section.items && section.items.map((item, iIdx) => {
                                 const isKeyValue = item.includes(":");
                                 if (isKeyValue) {
@@ -616,7 +619,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
                                    const value = parts.slice(1).join(":");
                                    
                                    return (
-                                     <li key={iIdx} style={{ listStyleType: 'none', marginLeft: '-1.25rem', fontSize: styles.fontSizeBody, lineHeight: styles.lineHeight, marginBottom: '2px' }}>
+                                     <li key={iIdx} style={{ listStyleType: 'none', marginLeft: '-1.25rem', fontSize: styles.fontSizeBody, lineHeight: styles.lineHeight, marginBottom: '2px', breakInside: 'avoid' }}>
                                         <span style={{ fontWeight: 'bold' }}>{key}:</span>
                                         <GrammarHighlighter 
                                           text={value} 
@@ -629,7 +632,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
                                    );
                                 }
                                 return (
-                                  <li key={iIdx} style={{ fontSize: styles.fontSizeBody, lineHeight: styles.lineHeight, marginBottom: '2px', paddingLeft: '2px' }}>
+                                  <li key={iIdx} style={{ fontSize: styles.fontSizeBody, lineHeight: styles.lineHeight, marginBottom: '2px', paddingLeft: '2px', breakInside: 'avoid' }}>
                                     <GrammarHighlighter 
                                       text={item} 
                                       path={`customSections.${idx}.items.${iIdx}`} 
@@ -641,7 +644,6 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
                                 );
                               })}
                            </ul>
-                         )}
                        </div>
                      </div>
                    );
@@ -680,15 +682,26 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
                                     <span className="text-xs font-mono text-indigo-300">
                                         {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
-                                    <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                                        log.path === "Extraction" 
-                                            ? log.original === "REMOVAL" ? "bg-red-500/20 text-red-300" 
-                                            : log.original === "ADDITION" ? "bg-green-500/20 text-green-300"
-                                            : "bg-blue-500/20 text-blue-300"
-                                            : "bg-slate-800/50 text-slate-500"
-                                    }`}>
-                                        {log.path === "Extraction" ? log.original : "Grammar"}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        {log.path !== "Extraction" && (
+                                            <button 
+                                                onClick={() => handleUndoChange(log)}
+                                                className="text-slate-400 hover:text-white transition-colors"
+                                                title="Undo this change"
+                                            >
+                                                <Undo2 className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                            log.path === "Extraction" 
+                                                ? log.original === "REMOVAL" ? "bg-red-500/20 text-red-300" 
+                                                : log.original === "ADDITION" ? "bg-green-500/20 text-green-300"
+                                                : "bg-blue-500/20 text-blue-300"
+                                                : "bg-slate-800/50 text-slate-500"
+                                        }`}>
+                                            {log.path === "Extraction" ? log.original : "Grammar"}
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="mb-2">
                                     {log.path === "Extraction" ? (

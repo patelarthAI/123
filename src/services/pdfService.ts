@@ -328,16 +328,17 @@ export const generateResumePDF = (data: ResumeData, format: ResumeFormat | strin
       });
 
       const titleUpper = section.title.toUpperCase();
-      const isGrid = titleUpper.includes("SKILLS") || titleUpper.includes("COMPETENCIES") || titleUpper.includes("LANGUAGES");
+      const isGridCandidate = titleUpper.includes("SKILLS") || titleUpper.includes("COMPETENCIES") || titleUpper.includes("LANGUAGES");
       const hasLongItems = section.items && section.items.some(item => item.length > 60);
+      const useColumns = isGridCandidate && !hasLongItems && section.items && section.items.length > 2;
 
-      if (isGrid && !hasLongItems && section.items) {
-        // Create 2-column layout for skills
+      if (useColumns && section.items) {
         const leftCol: any[] = [];
         const rightCol: any[] = [];
         
+        const half = Math.ceil(section.items.length / 2);
         section.items.forEach((item, idx) => {
-          if (idx % 2 === 0) leftCol.push(item);
+          if (idx < half) leftCol.push(item);
           else rightCol.push(item);
         });
 

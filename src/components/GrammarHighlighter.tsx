@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GrammarIssue } from '@/types';
 import { Check, X, AlertCircle } from 'lucide-react';
 
@@ -22,6 +22,8 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
   className 
 }) => {
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<'top' | 'bottom'>('bottom');
+  const spanRef = useRef<HTMLSpanElement>(null);
   
   // Normalize path for comparison
   const normalizePath = (p: string) => p.replace(/\[(\d+)\]/g, '.$1');
@@ -66,6 +68,7 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
       result.push(
         <span key={issue.id} className="relative inline-block">
           <span 
+            ref={activeIssueId === issue.id ? spanRef : null}
             style={{
               cursor: 'pointer',
               borderBottom: `2px solid ${highlightColor}`,
@@ -76,7 +79,23 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
             }}
             onClick={(e) => {
                 e.stopPropagation();
-                setActiveIssueId(activeIssueId === issue.id ? null : issue.id);
+                if (activeIssueId === issue.id) {
+                    setActiveIssueId(null);
+                } else {
+                    setActiveIssueId(issue.id);
+                    // Calculate position after a brief delay to allow render
+                    setTimeout(() => {
+                        if (spanRef.current) {
+                            const rect = spanRef.current.getBoundingClientRect();
+                            // If less than 250px from top, show below
+                            if (rect.top < 250) {
+                                setPopoverPosition('bottom');
+                            } else {
+                                setPopoverPosition('top');
+                            }
+                        }
+                    }, 10);
+                }
             }}
           >
             {issue.errorText}
@@ -84,7 +103,9 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
           
           {activeIssueId === issue.id && (
             <div 
-              className="absolute z-50 bottom-full left-0 mb-2 w-72 rounded-lg shadow-xl border p-4 text-sm font-sans animate-in fade-in zoom-in duration-200"
+              className={`absolute z-50 left-0 w-72 rounded-lg shadow-xl border p-4 text-sm font-sans animate-in fade-in zoom-in duration-200 ${
+                popoverPosition === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+              }`}
               style={{
                 backgroundColor: '#ffffff',
                 borderColor: '#e2e8f0',
