@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Admin Portal State
-let adminPassword = "admin123";
+let adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 interface PendingResume {
   id: string;
   fileName: string;

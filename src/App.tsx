@@ -728,6 +728,10 @@ const App: React.FC = () => {
                       {isChangingPassword ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Update'}
                     </button>
                   </form>
+                  <p className="mt-4 text-[9px] text-slate-600 italic">
+                    Note: Changes made here may not persist on serverless platforms like Vercel. 
+                    For permanent changes, update the <code className="bg-white/5 px-1 rounded">ADMIN_PASSWORD</code> environment variable in your deployment dashboard.
+                  </p>
                   {changePasswordStatus && (
                     <p className={`mt-2 text-[10px] ${changePasswordStatus.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
                       {changePasswordStatus.msg}
