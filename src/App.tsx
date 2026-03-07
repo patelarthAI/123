@@ -499,13 +499,6 @@ const App: React.FC = () => {
                       autoFocus
                     />
                   </div>
-                  <div className="text-xs text-slate-400 bg-white/5 p-4 rounded-xl border border-white/10">
-                    <p className="font-bold text-slate-300 mb-1">Admin Access Info:</p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      <li>Default password is <code className="bg-black/30 px-1 py-0.5 rounded text-indigo-300">Admin@2026</code></li>
-                      <li>To receive weekly rotated passwords, configure <code className="bg-black/30 px-1 py-0.5 rounded text-indigo-300">GMAIL_USER</code> and <code className="bg-black/30 px-1 py-0.5 rounded text-indigo-300">GMAIL_PASS</code> environment variables.</li>
-                    </ul>
-                  </div>
                   {adminError && <p className="text-red-400 text-xs text-center">{adminError}</p>}
                   <button 
                     type="submit"
