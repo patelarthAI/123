@@ -1,4 +1,5 @@
 import express from "express";
+console.log("Server starting...");
 import { createServer as createViteServer } from "vite";
 import WordExtractor from "word-extractor";
 // Fallback for some environments
