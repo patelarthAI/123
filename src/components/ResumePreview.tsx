@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { ResumeData, GrammarIssue, ChangeLogItem, ResumeFormat } from "@/types";
-import { Download, CheckCircle2, FileText, SpellCheck, Loader2, History, ArrowRight, LayoutTemplate, Undo2, ShieldCheck, Lock, AlertCircle } from "lucide-react";
+import { Download, CheckCircle2, FileText, SpellCheck, Loader2, History, ArrowRight, LayoutTemplate, Undo2 } from "lucide-react";
 import { analyzeGrammar } from "@/services/geminiService";
 import { generateResumePDF } from "@/services/pdfService";
 import { generateResumeDoc } from "@/services/docxService";
-import { saveAs } from "file-saver";
+import FileSaver from "file-saver";
 import GrammarHighlighter from "./GrammarHighlighter";
-import get from "lodash/get";
-import set from "lodash/set";
+import _ from "lodash"; // We need lodash for deep setting by path
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ResumePreviewProps {
@@ -16,13 +15,11 @@ interface ResumePreviewProps {
   onReset: () => void;
   onUpdate: (data: ResumeData) => void;
   selectedFormat: ResumeFormat;
-  usePro?: boolean;
 }
 
-const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset, onUpdate, selectedFormat, usePro = false }) => {
+const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset, onUpdate, selectedFormat }) => {
   const [isChecking, setIsChecking] = useState(false);
   const [issues, setIssues] = useState<GrammarIssue[]>([]);
-
   const [changeLog, setChangeLog] = useState<ChangeLogItem[]>(() => {
     if (data.extractionChanges) {
         return data.extractionChanges.map(c => ({
@@ -176,7 +173,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
   const handleCheckGrammar = async () => {
     setIsChecking(true);
     try {
-      const foundIssues = await analyzeGrammar(data, selectedFormat, usePro);
+      const foundIssues = await analyzeGrammar(data, selectedFormat);
       setIssues(foundIssues);
       if (foundIssues.length === 0) {
         alert("No grammar issues found!");
@@ -194,13 +191,13 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
     const newData = JSON.parse(JSON.stringify(data));
     
     // Get current value at path
-    const currentValue = get(newData, issue.path);
+    const currentValue = _.get(newData, issue.path);
     
     if (typeof currentValue === 'string' && issue.errorText && issue.suggestions && issue.suggestions.length > 0) {
         // Replace ONLY the error text with the first suggestion (or selected one passed in issue)
         const selectedSuggestion = issue.suggestions[0];
         const newValue = currentValue.replace(issue.errorText, selectedSuggestion);
-        set(newData, issue.path, newValue);
+        _.set(newData, issue.path, newValue);
         
         // Add to Change Log
         const newLogItem: ChangeLogItem = {
@@ -231,11 +228,11 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
     if (log.path === "Extraction") return;
 
     const newData = JSON.parse(JSON.stringify(data));
-    const currentValue = get(newData, log.path);
+    const currentValue = _.get(newData, log.path);
 
     if (typeof currentValue === 'string') {
         const newValue = currentValue.replace(log.new, log.original);
-        set(newData, log.path, newValue);
+        _.set(newData, log.path, newValue);
         
         // Update data
         onUpdate(newData);
@@ -257,7 +254,7 @@ const ResumePreview: React.FC<ResumePreviewProps> = ({ data, onDownload, onReset
   const handleDownloadDOCX = async () => {
     try {
       const blob = await generateResumeDoc(data, selectedFormat);
-      saveAs(blob, `Resume_${data.fullName.replace(/\s+/g, "_")}_${selectedFormat === ResumeFormat.MODERN_EXECUTIVE ? 'Modern' : 'Classic'}.docx`);
+      FileSaver.saveAs(blob, `Resume_${data.fullName.replace(/\s+/g, "_")}_${selectedFormat === ResumeFormat.MODERN_EXECUTIVE ? 'Modern' : 'Classic'}.docx`);
     } catch (err) {
       console.error("DOCX generation failed", err);
       alert("Failed to generate DOCX.");

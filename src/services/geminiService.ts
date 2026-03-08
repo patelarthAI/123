@@ -1,23 +1,7 @@
-import { GoogleGenAI, Type, ThinkingLevel, FunctionDeclaration } from "@google/genai";
+import { GoogleGenAI, Type, FunctionDeclaration, FunctionCallingConfigMode, ThinkingLevel } from "@google/genai";
 import { ResumeData, ResumeFormat, GrammarIssue } from "@/types";
 
-// Types for internal use
-
 let currentKeyIndex = 0;
-let totalRequests = 0;
-let rateLimitHits = 0;
-
-export const getUsageStats = (usePro: boolean = false) => {
-  const pool = getKeyPool();
-  const models = usePro ? PRO_MODELS : FALLBACK_MODELS;
-  return {
-    activeKeyIndex: currentKeyIndex % (pool.length || 1),
-    totalKeys: pool.length,
-    totalRequests,
-    rateLimitHits,
-    activeModel: models[0]
-  };
-};
 
 const getKeyPool = (): string[] => {
   const env = (import.meta as any).env || {};
@@ -49,15 +33,9 @@ const FALLBACK_MODELS = [
   "gemini-flash-latest"
 ];
 
-const PRO_MODELS = [
-  "gemini-3.1-pro-preview",
-  "gemini-3-flash-preview"
-];
-
 async function withModelFallback<T>(
   operation: (modelId: string, apiKey: string) => Promise<T>,
-  operationName: string,
-  usePro: boolean = false
+  operationName: string
 ): Promise<T> {
   let lastError: any;
   const pool = getKeyPool();
@@ -66,18 +44,15 @@ async function withModelFallback<T>(
     throw new Error("No API Keys found. Please configure VITE_GEMINI_KEY_1, 2, or 3.");
   }
 
-  const models = usePro ? PRO_MODELS : FALLBACK_MODELS;
-
   // We try up to 3 times total across keys/models
   let totalAttempts = 0;
   const maxAttempts = 3;
 
-  for (const modelId of models) {
+  for (const modelId of FALLBACK_MODELS) {
     for (let i = 0; i < pool.length; i++) {
       if (totalAttempts >= maxAttempts) break;
 
       const apiKey = getNextApiKey();
-      totalRequests++;
       try {
         return await operation(modelId, apiKey);
       } catch (error: any) {
@@ -89,7 +64,6 @@ async function withModelFallback<T>(
           errorString.includes("RESOURCE_EXHAUSTED");
           
         if (isRateLimit) {
-          rateLimitHits++;
           console.warn(`[${operationName}] Model ${modelId} with Key ${currentKeyIndex % pool.length} hit rate limit. Rotating key...`);
           currentKeyIndex++; // Move to next key
           totalAttempts++;
@@ -105,22 +79,10 @@ async function withModelFallback<T>(
   }
   
   console.error(`[${operationName}] All attempts exhausted.`, lastError);
-  
-  const errorString = lastError?.toString() || "";
-  if (errorString.includes("429") || errorString.includes("Quota exceeded") || errorString.includes("RESOURCE_EXHAUSTED")) {
-    throw new Error("High Traffic Detected: Our AI engines are currently at capacity. Please wait 30-60 seconds and try again.");
-  }
-  
-  if (errorString.includes("safety") || errorString.includes("blocked")) {
-    throw new Error("Content Blocked: The AI model flagged this document for safety reasons. Please ensure the content is professional and try again.");
-  }
-
-  throw new Error("Processing Interrupted: We encountered an unexpected issue while analyzing your resume. This usually resolves with a quick retry.");
+  throw new Error("API Rate Limit Exceeded: All available keys and models are currently exhausted. Please wait a moment and try again.");
 }
 
 const SYSTEM_INSTRUCTION = `
-ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusing on ATS-optimization, high-impact action verbs, and clean structural hierarchy.
-
 You are a Resume Parser that extracts content VERBATIM. 
 Your goal is to STRUCTURE the data exactly as seen in the document without losing ANY section.
 
@@ -275,10 +237,9 @@ const grammarAnalysisTool: FunctionDeclaration = {
   },
 };
 
-export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat, usePro: boolean = false): Promise<GrammarIssue[]> => {
+export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat): Promise<GrammarIssue[]> => {
   return withModelFallback(async (modelId, apiKey) => {
     const ai = new GoogleGenAI({ apiKey });
-    
     const response = await ai.models.generateContent({
       model: modelId,
       contents: {
@@ -315,13 +276,10 @@ export const analyzeGrammar = async (data: ResumeData, format: ResumeFormat, use
         ],
       },
       config: {
-        systemInstruction: `
-ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusing on ATS-optimization, high-impact action verbs, and clean structural hierarchy.
-`,
         tools: [{ functionDeclarations: [grammarAnalysisTool] }],
         toolConfig: { 
           functionCallingConfig: { 
-            mode: "ANY" as any, 
+            mode: FunctionCallingConfigMode.ANY, 
             allowedFunctionNames: ["save_grammar_issues"]
           } 
         },
@@ -338,7 +296,7 @@ ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusi
     }
     
     return []; // No issues found or model didn't call tool
-  }, "analyzeGrammar", usePro);
+  }, "analyzeGrammar");
 };
 
 const cleanText = (text: string): string => {
@@ -366,8 +324,7 @@ export interface ExtractionPayload {
 }
 
 export const extractResumeData = async (
-  payload: ExtractionPayload,
-  usePro: boolean = false
+  payload: ExtractionPayload
 ): Promise<ResumeData> => {
   return withModelFallback(async (modelId, apiKey) => {
     const ai = new GoogleGenAI({ apiKey });
@@ -406,12 +363,46 @@ export const extractResumeData = async (
       config: {
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         systemInstruction: `
-ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusing on ATS-optimization, high-impact action verbs, and clean structural hierarchy.
+You are a Resume Parser that extracts content VERBATIM. 
+Your goal is to STRUCTURE the data exactly as seen in the document without losing ANY section.
+
+CRITICAL RULES:
+1. **NO REWRITING**: Keep text exactly as is.
+2. **CAPTURE EVERYTHING**: Do not skip "Soft Skills", "Tools", "Languages", "Internships", "Projects" or "Digital Skills".
+3. **MAPPING**:
+   - **Work History/Professional Experience** -> 'experience' array.
+   - **Internships** -> 'internships' array.
+   - **Education** -> 'education' array.
+   - **Summary/Profile** -> 'summary' array.
+   - **EVERYTHING ELSE** (including Projects, Certifications, Skills) -> 'customSections' array.
+4. **FORMATTING**:
+   - **DATES**: EXTRACT DATES EXACTLY AS THEY APPEAR. 
+     - **DO NOT** add months if they are not present.
+     - **DO NOT** change "2023" to "Jan 2023".
+     - **DO NOT** change "Summer 2024" to "Jun 2024".
+     - Keep the original format.
+   - **TITLES**: Capture the EXACT section titles used in the resume.
+5. **PRIVACY**: Do NOT include any phone numbers or email addresses in ANY field.
+6. **Custom Sections**:
+   - For sections like "Technical Skills" or "Projects", preserve the structure.
+   - If a line looks like "Key: Value", keep it as a single string "Key: Value".
+7. **CHANGE LOGGING (MANDATORY)**:
+   - You MUST populate the 'extractionChanges' array with EVERY modification you make.
+   - **REMOVAL**: If you remove a phone number or email, log it. (e.g. "Removed phone number: +1-555-0199", reason: "PII Policy").
+   - **MODIFICATION**: If you reformat a date, log it. (e.g. "Changed 'January 2023' to 'Jan 2023'", reason: "Standardization").
+   - **ADDITION**: If you add a missing section title or infer a header, log it. (e.g. "Added section title 'Projects'", reason: "Inferred from content").
+   - **ELIMINATION**: If you remove irrelevant text (e.g. "References available upon request"), log it.
+
+VERIFICATION STEP (INTERNAL):
+Before outputting, you MUST internally verify that:
+- You have captured EVERY single bullet point from the original text.
+- You have NOT truncated any lists.
+- You have captured ALL sections, even small ones like "Interests" or "Volunteering".
 `,
         tools: [{ functionDeclarations: [saveResumeTool] }],
         toolConfig: { 
           functionCallingConfig: { 
-            mode: "ANY" as any, 
+            mode: FunctionCallingConfigMode.ANY, 
             allowedFunctionNames: ["save_resume_data"]
           } 
         },
@@ -462,13 +453,12 @@ ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusi
     }
     
     throw new Error("The AI model did not trigger the extraction tool correctly.");
-  }, "extractResumeData", usePro);
+  }, "extractResumeData");
 };
 
-export const checkSpelling = async (data: ResumeData, format: ResumeFormat, usePro: boolean = false): Promise<ResumeData> => {
+export const checkSpelling = async (data: ResumeData, format: ResumeFormat): Promise<ResumeData> => {
   return withModelFallback(async (modelId, apiKey) => {
     const ai = new GoogleGenAI({ apiKey });
-    
     const response = await ai.models.generateContent({
       model: modelId,
       contents: {
@@ -493,13 +483,10 @@ export const checkSpelling = async (data: ResumeData, format: ResumeFormat, useP
         ],
       },
       config: {
-        systemInstruction: `
-ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusing on ATS-optimization, high-impact action verbs, and clean structural hierarchy.
-`,
         tools: [{ functionDeclarations: [saveResumeTool] }],
         toolConfig: { 
           functionCallingConfig: { 
-            mode: "ANY" as any, 
+            mode: FunctionCallingConfigMode.ANY, 
             allowedFunctionNames: ["save_resume_data"]
           } 
         },
@@ -524,5 +511,5 @@ ACT AS A SECURE RESUME ARCHITECT. Provide expert-level resume formatting, focusi
     }
     
     throw new Error("The AI model did not return corrected data.");
-  }, "checkSpelling", usePro);
+  }, "checkSpelling");
 };

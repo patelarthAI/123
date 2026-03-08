@@ -66,7 +66,7 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
       const label = isSpelling ? 'Spelling Error' : (issue.type === 'GRAMMAR' ? 'Grammar Correction' : 'Writing Improvement');
 
       result.push(
-        <span key={issue.id} className="relative inline-block" style={{ zIndex: activeIssueId === issue.id ? 50 : 1 }}>
+        <span key={issue.id} className="relative inline-block">
           <span 
             ref={activeIssueId === issue.id ? spanRef : null}
             style={{
@@ -87,23 +87,11 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
                     setTimeout(() => {
                         if (spanRef.current) {
                             const rect = spanRef.current.getBoundingClientRect();
-                            // If less than 250px from top, show below, otherwise top
-                            // But also consider if we are in a scrolling container
-                            const container = document.getElementById('resume-preview-content');
-                            if (container) {
-                                const containerRect = container.getBoundingClientRect();
-                                const relativeTop = rect.top - containerRect.top;
-                                if (relativeTop < 350) {
-                                    setPopoverPosition('bottom');
-                                } else {
-                                    setPopoverPosition('top');
-                                }
+                            // If less than 250px from top, show below
+                            if (rect.top < 250) {
+                                setPopoverPosition('bottom');
                             } else {
-                                if (rect.top < 350) {
-                                    setPopoverPosition('bottom');
-                                } else {
-                                    setPopoverPosition('top');
-                                }
+                                setPopoverPosition('top');
                             }
                         }
                     }, 10);
@@ -165,9 +153,7 @@ const GrammarHighlighter: React.FC<GrammarHighlighterProps> = ({
               </div>
               
               <div 
-                className={`absolute left-4 w-2 h-2 border-b border-r transform rotate-45 ${
-                  popoverPosition === 'top' ? 'top-full -mt-1 bg-white' : 'bottom-full -mb-1 bg-white rotate-[225deg]'
-                }`}
+                className="absolute top-full left-4 -mt-1 w-2 h-2 border-b border-r transform rotate-45"
                 style={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
               ></div>
             </div>
