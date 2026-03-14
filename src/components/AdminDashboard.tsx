@@ -50,7 +50,14 @@ const AdminDashboard: React.FC = () => {
           handleLogout();
           throw new Error('Unauthorized. Please log in again.');
         }
-        throw new Error('Failed to fetch pending resumes');
+        let errorMessage = 'Failed to fetch pending resumes';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `Server error (${response.status}). Please try again later.`;
+        }
+        throw new Error(errorMessage);
       }
       const data = await response.json();
       setResumes(data.resumes || []);
@@ -77,7 +84,14 @@ const AdminDashboard: React.FC = () => {
 
       if (!response.ok) {
         if (response.status === 401) handleLogout();
-        throw new Error('Failed to approve resume');
+        let errorMessage = 'Failed to approve resume';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `Server error (${response.status}). Please try again later.`;
+        }
+        throw new Error(errorMessage);
       }
 
       // Remove the approved resume from the list

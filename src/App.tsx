@@ -84,8 +84,14 @@ const App: React.FC = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to extract text from .doc file.");
+          let errorMessage = "Failed to extract text from .doc file.";
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = `Server error (${response.status}). Please try again later.`;
+          }
+          throw new Error(errorMessage);
         }
 
         const { text } = await response.json();
@@ -151,8 +157,14 @@ const App: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit resume');
+        let errorMessage = 'Failed to submit resume';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `Server error (${response.status}). Please try again later.`;
+        }
+        throw new Error(errorMessage);
       }
 
       // Transition to waiting approval state
